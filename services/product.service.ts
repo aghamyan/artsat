@@ -4,6 +4,7 @@ import type {
   ProductWithImages,
   ProductWithVariants,
   ProductListParams,
+  ProductRating,
 } from "@/lib/types";
 import { PRODUCTS_PER_PAGE } from "@/lib/constants";
 
@@ -27,6 +28,8 @@ export async function getProducts(
     label,
     search,
     in_stock,
+    collections,
+    min_rating,
     sort = "newest",
     page = 1,
     limit = PRODUCTS_PER_PAGE,
@@ -34,13 +37,7 @@ export async function getProducts(
 
   let query = supabase
     .from("products")
-    .select(
-      `
-      *,
-      images:product_images(*)
-    `,
-      { count: "exact" }
-    )
+    .select("*, images:product_images(*)", { count: "exact" })
     .eq("is_active", true)
     .is("deleted_at", null);
 
@@ -57,9 +54,14 @@ export async function getProducts(
   if (label) query = query.eq("label", label);
   if (min_price !== undefined) query = query.gte("price", min_price);
   if (max_price !== undefined) query = query.lte("price", max_price);
-  if (search) query = query.ilike("name", `%${search}%`);
+  if (min_rating !== undefined) query = query.gte("average_rating", min_rating);
 
-  // Sort
+  // Search on name only — .ilike() is parameterized, unlike .or() string interpolation
+  if (search?.trim()) {
+    query = query.ilike("name", `%${search.trim()}%`);
+  }
+
+  // Sort (average_rating is denormalized on products table — safe to order)
   switch (sort) {
     case "price_asc":
       query = query.order("price", { ascending: true });
@@ -69,6 +71,9 @@ export async function getProducts(
       break;
     case "featured":
       query = query.order("is_featured", { ascending: false });
+      break;
+    case "rating":
+      query = query.order("average_rating", { ascending: false });
       break;
     default:
       query = query.order("created_at", { ascending: false });
@@ -83,29 +88,51 @@ export async function getProducts(
 
   let products = (data ?? []) as ProductWithImages[];
 
-  // Filter by size/color/in_stock via variants (post-query)
-  if (size?.length || color?.length || in_stock) {
-    const { data: variants } = await supabase
-      .from("product_variants")
-      .select("product_id, size, color, stock")
-      .eq("is_active", true);
+  // Filter by size/color/in_stock/collections via post-query (Supabase limitation)
+  const needsVariantFilter = size?.length || color?.length || in_stock;
+  const needsCollectionFilter = collections?.length;
 
-    if (variants) {
-      const matchingProductIds = new Set(
-        variants
-          .filter((v) => {
-            const sizeMatch = !size?.length || size.includes(v.size ?? "");
-            const colorMatch = !color?.length || color.includes(v.color ?? "");
-            const stockMatch = !in_stock || v.stock > 0;
-            return sizeMatch && colorMatch && stockMatch;
-          })
-          .map((v) => v.product_id)
-      );
-      products = products.filter((p) => matchingProductIds.has(p.id));
+  if (needsVariantFilter || needsCollectionFilter) {
+    const productIds = products.map((p) => p.id);
+
+    if (needsVariantFilter && productIds.length) {
+      const { data: variants } = await supabase
+        .from("product_variants")
+        .select("product_id, size, color, stock")
+        .in("product_id", productIds)
+        .eq("is_active", true);
+
+      if (variants) {
+        const matchingIds = new Set(
+          variants
+            .filter((v) => {
+              const sizeMatch = !size?.length || size.includes(v.size ?? "");
+              const colorMatch = !color?.length || color.includes(v.color ?? "");
+              const stockMatch = !in_stock || v.stock > 0;
+              return sizeMatch && colorMatch && stockMatch;
+            })
+            .map((v) => v.product_id)
+        );
+        products = products.filter((p) => matchingIds.has(p.id));
+      }
+    }
+
+    if (needsCollectionFilter && products.length) {
+      const { data: collectionRows } = await supabase
+        .from("collection_products")
+        .select("product_id, collection_id");
+
+      if (collectionRows) {
+        const productInCollections = new Set(
+          collectionRows
+            .filter((r) => collections!.includes(r.collection_id))
+            .map((r) => r.product_id)
+        );
+        products = products.filter((p) => productInCollections.has(p.id));
+      }
     }
   }
 
-  // Attach primary_image
   const enriched = products.map((p) => ({
     ...p,
     primary_image:
@@ -128,14 +155,12 @@ export async function getProductBySlug(
 
   const { data, error } = await supabase
     .from("products")
-    .select(
-      `
+    .select(`
       *,
       images:product_images(*),
       variants:product_variants(*),
       category:categories(*)
-    `
-    )
+    `)
     .eq("slug", slug)
     .eq("is_active", true)
     .is("deleted_at", null)
@@ -146,9 +171,7 @@ export async function getProductBySlug(
   return {
     ...data,
     primary_image:
-      data.images.find(
-        (img: { is_primary: boolean }) => img.is_primary
-      ) ??
+      data.images.find((img: { is_primary: boolean }) => img.is_primary) ??
       data.images[0] ??
       null,
   } as ProductWithVariants;
@@ -161,14 +184,12 @@ export async function getProductById(
 
   const { data, error } = await supabase
     .from("products")
-    .select(
-      `
+    .select(`
       *,
       images:product_images(*),
       variants:product_variants(*),
       category:categories(*)
-    `
-    )
+    `)
     .eq("id", id)
     .single();
 
@@ -177,9 +198,7 @@ export async function getProductById(
   return {
     ...data,
     primary_image:
-      data.images.find(
-        (img: { is_primary: boolean }) => img.is_primary
-      ) ??
+      data.images.find((img: { is_primary: boolean }) => img.is_primary) ??
       data.images[0] ??
       null,
   } as ProductWithVariants;
@@ -189,7 +208,6 @@ export async function getFeaturedProducts(
   limit = 8
 ): Promise<ProductWithImages[]> {
   const supabase = await createServerSupabaseClient();
-
   const { data } = await supabase
     .from("products")
     .select(`*, images:product_images(*)`)
@@ -208,7 +226,6 @@ export async function getFeaturedProducts(
 
 export async function getNewArrivals(limit = 8): Promise<ProductWithImages[]> {
   const supabase = await createServerSupabaseClient();
-
   const { data } = await supabase
     .from("products")
     .select(`*, images:product_images(*)`)
@@ -230,7 +247,6 @@ export async function searchProducts(
   limit = 10
 ): Promise<Product[]> {
   const supabase = await createServerSupabaseClient();
-
   const { data } = await supabase
     .from("products")
     .select("id, name, slug, price, label")
@@ -240,4 +256,108 @@ export async function searchProducts(
     .limit(limit);
 
   return (data ?? []) as Product[];
+}
+
+export async function getRelatedProducts(
+  productId: string,
+  categoryId: string | null,
+  price: number,
+  limit = 6
+): Promise<ProductWithImages[]> {
+  const supabase = await createServerSupabaseClient();
+
+  // Same category, similar price (±$20 = ±2000 cents), exclude self
+  let query = supabase
+    .from("products")
+    .select(`*, images:product_images(*)`)
+    .neq("id", productId)
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .gte("price", Math.max(0, price - 2000))
+    .lte("price", price + 2000)
+    .order("average_rating", { ascending: false })
+    .limit(limit);
+
+  if (categoryId) query = query.eq("category_id", categoryId);
+
+  const { data } = await query;
+  const rows = (data ?? []) as ProductWithImages[];
+
+  // If same category is sparse, fall back to any products in price range
+  if (rows.length < 2 && categoryId) {
+    const { data: fallback } = await supabase
+      .from("products")
+      .select(`*, images:product_images(*)`)
+      .neq("id", productId)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("average_rating", { ascending: false })
+      .limit(limit);
+
+    return ((fallback ?? []) as ProductWithImages[]).map((p) => ({
+      ...p,
+      primary_image:
+        p.images.find((img) => img.is_primary) ?? p.images[0] ?? null,
+    }));
+  }
+
+  return rows.map((p) => ({
+    ...p,
+    primary_image:
+      p.images.find((img) => img.is_primary) ?? p.images[0] ?? null,
+  }));
+}
+
+export async function getProductRating(
+  productId: string
+): Promise<ProductRating | null> {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("product_ratings")
+    .select("*")
+    .eq("product_id", productId)
+    .single();
+  return (data ?? null) as ProductRating | null;
+}
+
+export async function getProductReviews(productId: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("product_reviews")
+    .select("*, customer:profiles(full_name)")
+    .eq("product_id", productId)
+    .eq("is_approved", true)
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function getAvailableFilters(): Promise<{
+  colors: string[];
+  sizes: string[];
+  maxPrice: number;
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  const { data: variants } = await supabase
+    .from("product_variants")
+    .select("size, color")
+    .eq("is_active", true);
+
+  const { data: priceData } = await supabase
+    .from("products")
+    .select("price")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .order("price", { ascending: false })
+    .limit(1);
+
+  const colors = [
+    ...new Set((variants ?? []).map((v) => v.color).filter(Boolean) as string[]),
+  ].sort();
+  const sizes = [
+    ...new Set((variants ?? []).map((v) => v.size).filter(Boolean) as string[]),
+  ];
+  const maxPrice = priceData?.[0]?.price ?? 50000;
+
+  return { colors, sizes, maxPrice };
 }

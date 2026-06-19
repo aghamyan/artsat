@@ -1,11 +1,25 @@
 import React from "react";
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Jost, Bodoni_Moda } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { SITE_NAME } from "@/lib/constants";
+import { GA4Provider } from "@/components/analytics/GA4Provider";
 
-const inter = Inter({ subsets: ["latin"] });
+const jost = Jost({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+const bodoniModa = Bodoni_Moda({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+  style: ["normal", "italic"],
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: {
@@ -32,9 +46,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${jost.variable} ${bodoniModa.variable} font-sans`}>
         {children}
         <Toaster richColors position="top-right" />
+        <GA4Provider />
       </body>
     </html>
   );

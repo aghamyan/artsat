@@ -10,6 +10,13 @@ import {
   Settings,
   LogOut,
   Tag,
+  Layers,
+  Upload,
+  Star,
+  RefreshCcw,
+  CreditCard,
+  BarChart2,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,7 +28,14 @@ const ADMIN_LINKS = [
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
   { href: "/admin/products", label: "Products", icon: Package },
   { href: "/admin/categories", label: "Categories", icon: Tag },
+  { href: "/admin/collections", label: "Collections", icon: Layers },
+  { href: "/admin/import", label: "Import", icon: Upload },
   { href: "/admin/customers", label: "Customers", icon: Users },
+  { href: "/admin/reviews", label: "Reviews", icon: Star },
+  { href: "/admin/returns", label: "Returns", icon: RefreshCcw },
+  { href: "/admin/payments", label: "Payments", icon: CreditCard },
+  { href: "/admin/analytics/products", label: "Analytics", icon: BarChart2 },
+  { href: "/admin/ai", label: "AI Tools", icon: Sparkles },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

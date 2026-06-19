@@ -14,6 +14,7 @@ import { SITE_NAME } from "@/lib/constants";
 const NAV_LINKS = [
   { href: "/products", label: "Shop" },
   { href: "/products?label=new", label: "New Arrivals" },
+  { href: "/collections", label: "Collections" },
   { href: "/products?label=sale", label: "Sale" },
 ];
 
@@ -57,39 +58,44 @@ export function Header() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 w-full border-b bg-background transition-shadow",
-        isScrolled && "shadow-sm"
+        "sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur-sm transition-all duration-200",
+        isScrolled ? "shadow-[0_1px_8px_rgba(0,0,0,0.06)]" : "shadow-none"
       )}
     >
       <div className="container flex h-16 items-center justify-between">
         {/* Logo */}
         <Link
           href="/"
-          className="text-xl font-bold tracking-tight hover:opacity-80"
+          className="font-display text-xl italic font-normal tracking-tight hover:opacity-70 transition-opacity duration-200"
         >
           {SITE_NAME}
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "text-sm font-medium transition-colors hover:text-foreground",
-                pathname === link.href
-                  ? "text-foreground"
-                  : "text-muted-foreground"
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
+        <nav className="hidden md:flex items-center gap-7">
+          {NAV_LINKS.map((link) => {
+            const isActive = pathname === link.href || pathname?.startsWith(link.href.split("?")[0] + "/");
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "relative text-sm font-medium transition-colors duration-200 py-1",
+                  "after:absolute after:bottom-0 after:left-0 after:h-px after:bg-foreground",
+                  "after:transition-all after:duration-300",
+                  isActive
+                    ? "text-foreground after:w-full"
+                    : "text-muted-foreground hover:text-foreground after:w-0 hover:after:w-full"
+                )}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {/* Search */}
           {isSearchOpen ? (
             <form onSubmit={handleSearch} className="flex items-center gap-2">
@@ -98,13 +104,14 @@ export function Header() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search products..."
-                className="w-48 h-9"
+                className="w-48 h-9 bg-background"
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsSearchOpen(false)}
+                className="cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -115,8 +122,9 @@ export function Header() {
               size="icon"
               aria-label="Search"
               onClick={() => setIsSearchOpen(true)}
+              className="cursor-pointer hover:bg-accent transition-colors duration-200"
             >
-              <Search className="h-5 w-5" />
+              <Search className="h-[18px] w-[18px]" />
             </Button>
           )}
 
@@ -125,10 +133,11 @@ export function Header() {
             variant="ghost"
             size="icon"
             aria-label="Account"
+            className="cursor-pointer hover:bg-accent transition-colors duration-200"
             asChild
           >
             <Link href={isLoggedIn ? "/account" : "/login"}>
-              <User className="h-5 w-5" />
+              <User className="h-[18px] w-[18px]" />
             </Link>
           </Button>
 
@@ -138,11 +147,11 @@ export function Header() {
             size="icon"
             aria-label={`Cart (${itemCount} items)`}
             onClick={openCart}
-            className="relative"
+            className="relative cursor-pointer hover:bg-accent transition-colors duration-200"
           >
-            <ShoppingBag className="h-5 w-5" />
+            <ShoppingBag className="h-[18px] w-[18px]" />
             {itemCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
+              <span className="absolute -top-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-foreground text-[10px] font-bold text-background leading-none">
                 {itemCount > 9 ? "9+" : itemCount}
               </span>
             )}
@@ -152,7 +161,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="md:hidden cursor-pointer"
             aria-label="Menu"
             onClick={() => setIsMobileOpen(!isMobileOpen)}
           >
@@ -167,17 +176,26 @@ export function Header() {
 
       {/* Mobile nav */}
       {isMobileOpen && (
-        <div className="md:hidden border-t bg-background px-4 py-4 space-y-3">
+        <div className="md:hidden border-t bg-background px-6 py-5 space-y-1">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="block text-base font-medium py-2 hover:text-foreground text-muted-foreground"
+              className="block text-base font-medium py-2.5 text-muted-foreground hover:text-foreground transition-colors duration-200 border-b border-border last:border-0"
               onClick={() => setIsMobileOpen(false)}
             >
               {link.label}
             </Link>
           ))}
+          <div className="pt-3 flex gap-3">
+            <Link
+              href={isLoggedIn ? "/account" : "/login"}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setIsMobileOpen(false)}
+            >
+              {isLoggedIn ? "My Account" : "Sign In"}
+            </Link>
+          </div>
         </div>
       )}
     </header>

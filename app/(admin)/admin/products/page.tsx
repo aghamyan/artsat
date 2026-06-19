@@ -64,9 +64,17 @@ export default async function AdminProductsPage() {
                   )}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href={`/admin/products/${product.id}/edit`}>Edit</Link>
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/admin/products/${product.id}/edit`}>Edit</Link>
+                    </Button>
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/admin/products/${product.id}/variants`}>Variants</Link>
+                    </Button>
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/admin/products/${product.id}/images`}>Images</Link>
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}

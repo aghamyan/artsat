@@ -7,16 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { VariantSelector } from "./VariantSelector";
+import { RatingStars } from "./RatingStars";
 import { useCartStore } from "@/store/cart";
-import type { ProductWithVariants, ProductVariant } from "@/lib/types";
+import type { ProductWithVariants, ProductVariant, ProductRating } from "@/lib/types";
 import { formatPrice, discountPercent } from "@/lib/utils";
 import { toast } from "sonner";
+import { LOW_STOCK_THRESHOLD } from "@/lib/constants";
+import AddToWishlistButton from "./AddToWishlistButton";
 
 interface ProductDetailProps {
   product: ProductWithVariants;
+  rating?: ProductRating | null;
 }
 
-export function ProductDetail({ product }: ProductDetailProps) {
+export function ProductDetail({ product, rating }: ProductDetailProps) {
   const [selectedVariant, setSelectedVariant] =
     useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -110,6 +114,17 @@ export function ProductDetail({ product }: ProductDetailProps) {
           )}
           <h1 className="text-2xl font-bold md:text-3xl">{product.name}</h1>
 
+          {/* Rating */}
+          {rating && rating.review_count > 0 && (
+            <div className="mt-1.5">
+              <RatingStars
+                rating={rating.average_rating}
+                reviewCount={rating.review_count}
+                size="sm"
+              />
+            </div>
+          )}
+
           <div className="flex items-center gap-3 mt-3">
             <span className="text-2xl font-semibold">
               {formatPrice(effectivePrice)}
@@ -185,25 +200,47 @@ export function ProductDetail({ product }: ProductDetailProps) {
             </div>
           </div>
 
-          <Button
-            size="lg"
-            className="w-full h-12 text-base gap-2"
-            onClick={handleAddToCart}
-            disabled={
-              isLoading ||
-              !selectedVariant ||
-              selectedVariant.stock === 0
-            }
-          >
-            <ShoppingBag className="h-5 w-5" />
-            {!selectedVariant
-              ? "Select Options"
-              : selectedVariant.stock === 0
-              ? "Out of Stock"
-              : isLoading
-              ? "Adding..."
-              : "Add to Cart"}
-          </Button>
+          {/* Stock status */}
+          {selectedVariant && (
+            <div className="flex items-center gap-2">
+              {selectedVariant.stock === 0 ? (
+                <Badge variant="secondary" className="bg-red-100 text-red-800">Out of Stock</Badge>
+              ) : selectedVariant.stock <= LOW_STOCK_THRESHOLD ? (
+                <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                  Low Stock — only {selectedVariant.stock} left
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="bg-green-100 text-green-800">In Stock</Badge>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button
+              size="lg"
+              className="flex-1 h-12 text-base gap-2"
+              onClick={handleAddToCart}
+              disabled={
+                isLoading ||
+                !selectedVariant ||
+                selectedVariant.stock === 0
+              }
+            >
+              <ShoppingBag className="h-5 w-5" />
+              {!selectedVariant
+                ? "Select Options"
+                : selectedVariant.stock === 0
+                ? "Out of Stock"
+                : isLoading
+                ? "Adding..."
+                : "Add to Cart"}
+            </Button>
+            <AddToWishlistButton
+              productId={product.id}
+              variantId={selectedVariant?.id}
+              className="h-12 px-4 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            />
+          </div>
         </div>
 
         {/* Description */}
